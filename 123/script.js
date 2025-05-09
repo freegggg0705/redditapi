@@ -81,13 +81,8 @@ async function displayMedia() {
     const posts = await fetchPosts(clientId, clientSecret, subredditInput, sort, limit, timeFilter);
 
     posts.forEach(post => {
-        let url = post.url;
-        // Handle .gifv by converting to .mp4 (Imgur-specific)
-        if (url.endsWith('.gifv')) {
-            url = url.replace('.gifv', '.mp4');
-        }
-
-        if (url.includes('redgifs.com') || url.includes('i.redd.it') || url.includes('v.redd.it') || url.endsWith('.mp4')) {
+        const url = post.url;
+        if (url.includes('redgifs.com') || url.includes('i.redd.it') || url.includes('v.redd.it')) {
             const feedItem = document.createElement('div');
             feedItem.className = 'feed-item';
 
@@ -98,13 +93,12 @@ async function displayMedia() {
                 img.src = url;
                 img.alt = post.title;
                 feedItem.appendChild(img);
-            } else if (url.includes('redgifs.com') || url.includes('v.redd.it') || url.endsWith('.mp4')) {
+            } else if (url.includes('redgifs.com') || url.includes('v.redd.it')) {
                 const video = document.createElement('video');
                 video.className = 'thumbnail';
                 video.src = url;
                 video.controls = true;
                 video.muted = true;
-                video.type = 'video/mp4'; // Specify MIME type for MP4
                 feedItem.appendChild(video);
             } else {
                 const placeholder = document.createElement('div');
@@ -115,7 +109,7 @@ async function displayMedia() {
             // Create title
             const title = document.createElement('a');
             title.className = 'title';
-            title.href = post.url; // Use original URL for linking
+            title.href = url;
             title.textContent = post.title.substring(0, 100);
             feedItem.appendChild(title);
 
@@ -194,4 +188,4 @@ document.querySelector('.layout-button[data-layout="grid"]').classList.add('acti
 // Initialize
 setupEventListeners();
 updateLayout();
-updateStatus('Please enter Client ID and Secret', true); // Set initial error state
+displayMedia();
