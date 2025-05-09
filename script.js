@@ -1,6 +1,6 @@
 // Reddit OAuth credentials (replace with your own)
-const clientId = 'I9vfmmWGzkTWloyUnNPGbQ';
-const clientSecret = 'x7zGNhP1eaM4uyOj0SIdUSHZQi0lcg';
+const clientId = '';
+const clientSecret = '';
 
 // Function to get OAuth token
 async function getAccessToken() {
