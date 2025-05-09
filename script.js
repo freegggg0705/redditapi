@@ -1,10 +1,13 @@
-// Reddit OAuth credentials (replace with your own)
-const clientId = '';
-const clientSecret = '';
+function updateStatus(message, isError = false) {
+    const statusBar = document.getElementById('status-bar');
+    statusBar.textContent = message;
+    statusBar.style.background = isError ? '#dc3545' : '#007bff';
+}
 
 // Function to get OAuth token
-async function getAccessToken() {
+async function getAccessToken(clientId, clientSecret) {
     try {
+        updateStatus('Fetching access token...');
         const response = await fetch('https://www.reddit.com/api/v1/access_token', {
             method: 'POST',
             headers: {
@@ -14,17 +17,20 @@ async function getAccessToken() {
             body: 'grant_type=client_credentials'
         });
         const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        updateStatus('Access token retrieved');
         return data.access_token;
     } catch (error) {
-        console.error('Error getting access token:', error);
+        updateStatus(`Error getting access token: ${error.message}`, true);
         return null;
     }
 }
 
 // Function to fetch subreddit posts
-async function fetchPosts(subreddit, sort, limit, timeFilter) {
+async function fetchPosts(clientId, clientSecret, subreddit, sort, limit, timeFilter) {
     try {
-        const token = await getAccessToken();
+        updateStatus('Fetching posts...');
+        const token = await getAccessToken(clientId, clientSecret);
         if (!token) return [];
 
         let url = `https://oauth.reddit.com/r/${subreddit}/${sort}.json?limit=${limit}`;
@@ -38,44 +44,47 @@ async function fetchPosts(subreddit, sort, limit, timeFilter) {
             }
         });
         const data = await response.json();
+        if (data.error) throw new Error(data.error);
+        updateStatus('Posts fetched successfully');
         return data.data.children.map(child => child.data);
     } catch (error) {
-        console.error('Error fetching posts:', error);
+        updateStatus(`Error fetching posts: ${error.message}`, true);
         return [];
     }
 }
 
 // Function to filter and display media
 async function displayMedia() {
+    const clientId = document.getElementById('client-id').value.trim();
+    const clientSecret = document.getElementById('client-secret').value.trim();
     const subredditInput = document.getElementById('subreddit-input').value.trim();
     const limitInput = parseInt(document.getElementById('limit-input').value) || 5;
     const sort = document.querySelector('.sort-button.active')?.dataset.sort || 'best';
-    const timeFilter = sort === 'top' ? document.getElementById('time-filter').value : null;
+    const timeFilter = sort === 'top' ? document.querySelector('.time-button.active')?.dataset.time || 'day' : null;
 
     // Validate inputs
-    if (!subredditInput) {
-        console.error('Please enter a subreddit or multireddit');
+    if (!clientId || !clientSecret) {
+        updateStatus('Please enter Client ID and Secret', true);
         return;
     }
-    const limit = Math.min(Math.max(limitInput, 1), 100); // Clamp between 1 and 100
+    if (!subredditInput) {
+        updateStatus('Please enter a subreddit or multireddit', true);
+        return;
+    }
+    const limit = Math.min(Math.max(limitInput, 1), 100);
 
     const feedContainer = document.getElementById('feed-container');
-    feedContainer.innerHTML = ''; // Clear previous content
+    const nonMediaList = document.getElementById('non-media-items');
+    feedContainer.innerHTML = '';
+    nonMediaList.innerHTML = '';
 
-    const posts = await fetchPosts(subredditInput, sort, limit, timeFilter);
+    const posts = await fetchPosts(clientId, clientSecret, subredditInput, sort, limit, timeFilter);
 
     posts.forEach(post => {
         const url = post.url;
         if (url.includes('redgifs.com') || url.includes('i.redd.it') || url.includes('v.redd.it')) {
             const feedItem = document.createElement('div');
-            feedItem.className = 'feed-item grid';
-
-            // Create title
-            const title = document.createElement('a');
-            title.className = 'title';
-            title.href = url;
-            title.textContent = post.title.substring(0, 100); // Limit title length
-            feedItem.appendChild(title);
+            feedItem.className = 'feed-item';
 
             // Create media element
             if (url.includes('i.redd.it')) {
@@ -89,7 +98,7 @@ async function displayMedia() {
                 video.className = 'thumbnail';
                 video.src = url;
                 video.controls = true;
-                video.muted = true; // Mute for autoplay compatibility
+                video.muted = true;
                 feedItem.appendChild(video);
             } else {
                 const placeholder = document.createElement('div');
@@ -97,34 +106,86 @@ async function displayMedia() {
                 feedItem.appendChild(placeholder);
             }
 
+            // Create title
+            const title = document.createElement('a');
+            title.className = 'title';
+            title.href = url;
+            title.textContent = post.title.substring(0, 100);
+            feedItem.appendChild(title);
+
             feedContainer.appendChild(feedItem);
+        } else {
+            const listItem = document.createElement('li');
+            listItem.innerHTML = `Permalink: <a href="https://reddit.com${post.permalink}" target="_blank">${post.permalink}</a> | URL: <a href="${post.url}" target="_blank">${post.url}</a>`;
+            nonMediaList.appendChild(listItem);
         }
     });
 }
 
-// Event listeners for controls
+// Update layout and thumbnail size
+function updateLayout() {
+    const layout = document.querySelector('.layout-button.active')?.dataset.layout || 'grid';
+    const columns = document.getElementById('columns-slider').value;
+    const size = document.getElementById('size-slider').value;
+    const feedContainer = document.getElementById('feed-container');
+
+    feedContainer.className = layout;
+    feedContainer.style.setProperty('--columns', columns);
+    feedContainer.style.setProperty('--thumbnail-size', `${size}px`);
+}
+
+// Event listeners
 function setupEventListeners() {
     const timeFilterDiv = document.querySelector('.time-filter');
+
+    // Sort buttons
     document.querySelectorAll('.sort-button').forEach(button => {
         button.addEventListener('click', () => {
-            // Remove active class from all buttons
             document.querySelectorAll('.sort-button').forEach(btn => btn.classList.remove('active'));
-            // Add active class to clicked button
             button.classList.add('active');
-            // Show/hide time filter based on sort
             timeFilterDiv.style.display = button.dataset.sort === 'top' ? 'flex' : 'none';
+            if (button.dataset.sort === 'top') {
+                document.querySelector('.time-button[data-time="day"]').classList.add('active');
+            }
             displayMedia();
         });
     });
 
+    // Time filter buttons
+    document.querySelectorAll('.time-button').forEach(button => {
+        button.addEventListener('click', () => {
+            document.querySelectorAll('.time-button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            displayMedia();
+        });
+    });
+
+    // Layout buttons
+    document.querySelectorAll('.layout-button').forEach(button => {
+        button.addEventListener('click', () => {
+            document.querySelectorAll('.layout-button').forEach(btn => btn.classList.remove('active'));
+            button.classList.add('active');
+            updateLayout();
+            displayMedia();
+        });
+    });
+
+    // Sliders
+    document.getElementById('columns-slider').addEventListener('input', updateLayout);
+    document.getElementById('size-slider').addEventListener('input', updateLayout);
+
+    // Inputs
+    document.getElementById('client-id').addEventListener('change', displayMedia);
+    document.getElementById('client-secret').addEventListener('change', displayMedia);
     document.getElementById('subreddit-input').addEventListener('change', displayMedia);
     document.getElementById('limit-input').addEventListener('change', displayMedia);
-    document.getElementById('time-filter').addEventListener('change', displayMedia);
 }
 
-// Set default sort to 'best'
+// Set defaults
 document.querySelector('.sort-button[data-sort="best"]').classList.add('active');
+document.querySelector('.layout-button[data-layout="grid"]').classList.add('active');
 
-// Initialize event listeners and display
+// Initialize
 setupEventListeners();
+updateLayout();
 displayMedia();
