@@ -1,6 +1,6 @@
 // Reddit OAuth credentials (replace with your own)
-const clientId = 'YOUR_CLIENT_ID';
-const clientSecret = 'YOUR_CLIENT_SECRET';
+const clientId = 'I9vfmmWGzkTWloyUnNPGbQ';
+const clientSecret = 'x7zGNhP1eaM4uyOj0SIdUSHZQi0lcg';
 
 // Function to get OAuth token
 async function getAccessToken() {
@@ -65,7 +65,7 @@ async function displayMedia() {
     const posts = await fetchPosts(subredditInput, sort, limit, timeFilter);
 
     posts.forEach(post => {
-        const url = postPodczas: true;
+        const url = post.url;
         if (url.includes('redgifs.com') || url.includes('i.redd.it') || url.includes('v.redd.it')) {
             const feedItem = document.createElement('div');
             feedItem.className = 'feed-item grid';
@@ -103,21 +103,28 @@ async function displayMedia() {
 }
 
 // Event listeners for controls
-document.querySelectorAll('.sort-button').forEach(button => {
-    button.addEventListener('click', () => {
-        document.querySelectorAll('.sort-button').forEach(btn => btn.classList.remove('active'));
-        button.classList.add('active');
-        document.querySelector('.time-filter').style.display = button.dataset.sort === 'top' ? 'flex' : 'none';
-        displayMedia();
+function setupEventListeners() {
+    const timeFilterDiv = document.querySelector('.time-filter');
+    document.querySelectorAll('.sort-button').forEach(button => {
+        button.addEventListener('click', () => {
+            // Remove active class from all buttons
+            document.querySelectorAll('.sort-button').forEach(btn => btn.classList.remove('active'));
+            // Add active class to clicked button
+            button.classList.add('active');
+            // Show/hide time filter based on sort
+            timeFilterDiv.style.display = button.dataset.sort === 'top' ? 'flex' : 'none';
+            displayMedia();
+        });
     });
-});
 
-document.getElementById('subreddit-input').addEventListener('change', displayMedia);
-document.getElementById('limit-input').addEventListener('change', displayMedia);
-document.getElementById('time-filter').addEventListener('change', displayMedia);
+    document.getElementById('subreddit-input').addEventListener('change', displayMedia);
+    document.getElementById('limit-input').addEventListener('change', displayMedia);
+    document.getElementById('time-filter').addEventListener('change', displayMedia);
+}
 
 // Set default sort to 'best'
 document.querySelector('.sort-button[data-sort="best"]').classList.add('active');
 
-// Initial display
+// Initialize event listeners and display
+setupEventListeners();
 displayMedia();
