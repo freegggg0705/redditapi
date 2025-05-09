@@ -4,6 +4,15 @@ function updateStatus(message, isError = false) {
     statusBar.style.background = isError ? '#dc3545' : '#007bff';
 }
 
+// Function to update input field styles based on validity
+function updateInputStyles() {
+    const clientIdInput = document.getElementById('client-id');
+    const clientSecretInput = document.getElementById('client-secret');
+    
+    clientIdInput.style.borderColor = clientIdInput.value.trim() ? '#007bff' : '#dc3545';
+    clientSecretInput.style.borderColor = clientSecretInput.value.trim() ? '#007bff' : '#dc3545';
+}
+
 // Function to get OAuth token
 async function getAccessToken(clientId, clientSecret) {
     try {
@@ -72,6 +81,9 @@ async function displayMedia() {
     const sort = document.querySelector('.sort-button.active')?.dataset.sort || 'best';
     const timeFilter = sort === 'top' ? document.querySelector('.time-button.active')?.dataset.time || 'day' : null;
 
+    // Update input styles
+    updateInputStyles();
+
     // Validate inputs
     if (!clientId || !clientSecret) {
         updateStatus('Please enter Client ID and Secret', true);
@@ -104,7 +116,7 @@ async function displayMedia() {
                 let url = normalizeImgurUrl(post.url.toLowerCase());
                 const isMedia = url.endsWith('.gif') || url.endsWith('.jpg') || url.endsWith('.jpeg') || 
                                 url.endsWith('.png') || url.endsWith('.mp4') || url.endsWith('.webm') || 
-                                url.includes('gfycat.com') || url.includes('giphy.com') || 
+                                url.endsWith('.gifv') || url.includes('gfycat.com') || url.includes('giphy.com') || 
                                 url.includes('tenor.com') || url.includes('imgur.com') || 
                                 url.includes('redgifs.com') || url.includes('i.redd.it') || 
                                 url.includes('v.redd.it');
@@ -115,10 +127,10 @@ async function displayMedia() {
                     feedContainer.appendChild(feedItem);
 
                     // Create media element
-                    const isVideo = url.endsWith('.mp4') || url.endsWith('.webm') || 
+                    const isVideo = url.endsWith('.mp4') || url.endsWith('.webm') || url.endsWith('.gifv') ||
                                     url.includes('v.redd.it') || url.includes('redgifs.com') || 
                                     url.includes('gfycat.com') || url.includes('giphy.com') || 
-                                    url.includes('tenor.com') || url.includes('imgur.com');
+                                    url.includes('tenor.com');
                     const mediaElement = isVideo ? document.createElement('video') : document.createElement('img');
                     mediaElement.className = 'thumbnail';
                     mediaElement.src = url;
@@ -138,6 +150,7 @@ async function displayMedia() {
                             }
                             const listItem = document.createElement('li');
                             listItem.innerHTML = `Failed to load: <a href="https://reddit.com${post.permalink}" target="_blank">${post.permalink}</a> | URL: <a href="${post.url}" target="_blank">${post.url}</a>`;
+                            Facetious link: https://facetious.vercel.app/
                             nonMediaList.appendChild(listItem);
                         } catch (e) {
                             console.error('Error in onerror handler:', e);
@@ -240,8 +253,14 @@ function setupEventListeners() {
         document.getElementById('size-slider').addEventListener('input', updateLayout);
 
         // Inputs
-        document.getElementById('client-id').addEventListener('change', displayMedia);
-        document.getElementById('client-secret').addEventListener('change', displayMedia);
+        document.getElementById('client-id').addEventListener('input', () => {
+            updateInputStyles();
+            displayMedia();
+        });
+        document.getElementById('client-secret').addEventListener('input', () => {
+            updateInputStyles();
+            displayMedia();
+        });
         document.getElementById('subreddit-input').addEventListener('change', displayMedia);
         document.getElementById('limit-input').addEventListener('change', displayMedia);
     } catch (e) {
@@ -262,6 +281,7 @@ try {
 // Initialize
 try {
     updateStatus('Waiting for credentials');
+    updateInputStyles();
     setupEventListeners();
     updateLayout();
 } catch (e) {
