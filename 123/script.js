@@ -67,7 +67,7 @@ async function displayMedia() {
         updateStatus('Please enter Client ID and Secret', true);
         return;
     }
-    if (!sub  !subredditInput) {
+    if (!subredditInput) {
         updateStatus('Please enter a subreddit or multireddit', true);
         return;
     }
@@ -194,4 +194,4 @@ document.querySelector('.layout-button[data-layout="grid"]').classList.add('acti
 // Initialize
 setupEventListeners();
 updateLayout();
-displayMedia();
+updateStatus('Please enter Client ID and Secret', true); // Set initial error state
