@@ -16,6 +16,7 @@ async function getAccessToken(clientId, clientSecret) {
             },
             body: 'grant_type=client_credentials'
         });
+        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const data = await response.json();
         if (data.error) throw new Error(data.error);
         updateStatus('Access token retrieved');
@@ -43,6 +44,7 @@ async function fetchPosts(clientId, clientSecret, subreddit, sort, limit, timeFi
                 'Authorization': `Bearer ${token}`
             }
         });
+        if (!response.ok) throw new Error(`HTTP error ${response.status}`);
         const data = await response.json();
         if (data.error) throw new Error(data.error);
         updateStatus('Posts fetched successfully');
@@ -73,10 +75,14 @@ async function displayMedia() {
     // Validate inputs
     if (!clientId || !clientSecret) {
         updateStatus('Please enter Client ID and Secret', true);
+        document.getElementById('feed-container').innerHTML = '';
+        document.getElementById('non-media-items').innerHTML = '';
         return;
     }
     if (!subredditInput) {
         updateStatus('Please enter a subreddit or multireddit', true);
+        document.getElementById('feed-container').innerHTML = '';
+        document.getElementById('non-media-items').innerHTML = '';
         return;
     }
     const limit = Math.min(Math.max(limitInput, 1), 100);
@@ -86,124 +92,179 @@ async function displayMedia() {
     feedContainer.innerHTML = '';
     nonMediaList.innerHTML = '';
 
-    const posts = await fetchPosts(clientId, clientSecret, subredditInput, sort, limit, timeFilter);
-
-    posts.forEach(post => {
-        let url = normalizeImgurUrl(post.url.toLowerCase());
-        const isMedia = url.endsWith('.gif') || url.endsWith('.jpg') || url.endsWith('.jpeg') || 
-                        url.endsWith('.png') || url.endsWith('.mp4') || url.endsWith('.webm') || 
-                        url.includes('gfycat.com') || url.includes('giphy.com') || 
-                        url.includes('tenor.com') || url.includes('imgur.com') || 
-                        url.includes('redgifs.com') || url.includes('i.redd.it') || 
-                        url.includes('v.redd.it');
-
-        if (isMedia) {
-            const feedItem = document.createElement('div');
-            feedItem.className = 'feed-item';
-            feedContainer.appendChild(feedItem);
-
-            // Create media element
-            const isVideo = url.endsWith('.mp4') || url.endsWith('.webm') || 
-                            url.includes('v.redd.it') || url.includes('redgifs.com') || 
-                            url.includes('gfycat.com') || url.includes('giphy.com') || 
-                            url.includes('tenor.com') || url.includes('imgur.com');
-            const mediaElement = isVideo ? document.createElement('video') : document.createElement('img');
-            mediaElement.className = 'thumbnail';
-            mediaElement.src = url;
-            mediaElement.alt = post.title;
-            if (isVideo) {
-                mediaElement.controls = true;
-                mediaElement.muted = true;
-            }
-            feedItem.appendChild(mediaElement);
-
-            // Handle media load errors
-            mediaElement.onerror = () => {
-                updateStatus(`Failed to load media: ${url}`, true);
-                feedContainer.removeChild(feedItem);
-                const listItem = document.createElement('li');
-                listItem.innerHTML = `Failed to load: <a href="https://reddit.com${post.permalink}" target="_blank">${post.permalink}</a> | URL: <a href="${post.url}" target="_blank">${post.url}</a>`;
-                nonMediaList.appendChild(listItem);
-            };
-
-            // Create title
-            const title = document.createElement('a');
-            title.className = 'title';
-            title.href            title.href = url;
-            title.textContent = post.title.substring(0, 100);
-            feedItem.appendChild(title);
-        } else {
-            const listItem = document.createElement('li');
-            listItem.innerHTML = `Permalink: <a href="https://reddit.com${post.permalink}" target="_blank">${post.permalink}</a> | URL: <a href="${post.url}" target="_blank">${post.url}</a>`;
-            nonMediaList.appendChild(listItem);
+    try {
+        const posts = await fetchPosts(clientId, clientSecret, subredditInput, sort, limit, timeFilter);
+        if (!posts.length) {
+            updateStatus('No posts found', true);
+            return;
         }
-    });
+
+        posts.forEach(post => {
+            try {
+                let url = normalizeImgurUrl(post.url.toLowerCase());
+                const isMedia = url.endsWith('.gif') || url.endsWith('.jpg') || url.endsWith('.jpeg') || 
+                                url.endsWith('.png') || url.endsWith('.mp4') || url.endsWith('.webm') || 
+                                url.includes('gfycat.com') || url.includes('giphy.com') || 
+                                url.includes('tenor.com') || url.includes('imgur.com') || 
+                                url.includes('redgifs.com') || url.includes('i.redd.it') || 
+                                url.includes('v.redd.it');
+
+                if (isMedia) {
+                    const feedItem = document.createElement('div');
+                    feedItem.className = 'feed-item';
+                    feedContainer.appendChild(feedItem);
+
+                    // Create media element
+                    const isVideo = url.endsWith('.mp4') || url.endsWith('.webm') || 
+                                    url.includes('v.redd.it') || url.includes('redgifs.com') || 
+                                    url.includes('gfycat.com') || url.includes('giphy.com') || 
+                                    url.includes('tenor.com') || url.includes('imgur.com');
+                    const mediaElement = isVideo ? document.createElement('video') : document.createElement('img');
+                    mediaElement.className = 'thumbnail';
+                    mediaElement.src = url;
+                    mediaElement.alt = post.title;
+                    if (isVideo) {
+                        mediaElement.controls = true;
+                        mediaElement.muted = true;
+                    }
+                    feedItem.appendChild(mediaElement);
+
+                    // Handle media load errors
+                    mediaElement.onerror = () => {
+                        try {
+                            updateStatus(`Failed to load media: ${url}`, true);
+                            if (feedContainer.contains(feedItem)) {
+                                feedContainer.removeChild(feedItem);
+                            }
+                            const listItem = document.createElement('li');
+                            listItem.innerHTML = `Failed to load: <a href="https://reddit.com${post.permalink}" target="_blank">${post.permalink}</a> | URL: <a href="${post.url}" target="_blank">${post.url}</a>`;
+                            nonMediaList.appendChild(listItem);
+                        } catch (e) {
+                            console.error('Error in onerror handler:', e);
+                        }
+                    };
+
+                    // Create title
+                    const title = document.createElement('a');
+                    title.className = 'title';
+                    title.href = url;
+                    title.textContent = post.title.substring(0, 100);
+                    feedItem.appendChild(title);
+                } else {
+                    const listItem = document.createElement('li');
+                    listItem.innerHTML = `Permalink: <a href="https://reddit.com${post.permalink}" target="_blank">${post.permalink}</a> | URL: <a href="${post.url}" target="_blank">${post.url}</a>`;
+                    nonMediaList.appendChild(listItem);
+                }
+            } catch (e) {
+                console.error('Error processing post:', e);
+                updateStatus(`Error processing post: ${e.message}`, true);
+            }
+        });
+    } catch (e) {
+        console.error('Error in displayMedia:', e);
+        updateStatus(`Error displaying media: ${e.message}`, true);
+    }
 }
 
 // Update layout and thumbnail size
 function updateLayout() {
-    const layout = document.querySelector('.layout-button.active')?.dataset.layout || 'grid';
-    const columns = document.getElementById('columns-slider').value;
-    const size = document.getElementById('size-slider').value;
-    const feedContainer = document.getElementById('feed-container');
+    try {
+        const layout = document.querySelector('.layout-button.active')?.dataset.layout || 'grid';
+        const columns = document.getElementById('columns-slider').value;
+        const size = document.getElementById('size-slider').value;
+        const feedContainer = document.getElementById('feed-container');
 
-    feedContainer.className = layout;
-    feedContainer.style.setProperty('--columns', columns);
-    feedContainer.style.setProperty('--thumbnail-size', `${size}px`);
+        feedContainer.className = layout;
+        feedContainer.style.setProperty('--columns', columns);
+        feedContainer.style.setProperty('--thumbnail-size', `${size}px`);
+    } catch (e) {
+        console.error('Error updating layout:', e);
+        updateStatus(`Error updating layout: ${e.message}`, true);
+    }
 }
 
 // Event listeners
 function setupEventListeners() {
-    const timeFilterDiv = document.querySelector('.time-filter');
+    try {
+        const timeFilterDiv = document.querySelector('.time-filter');
 
-    // Sort buttons
-    document.querySelectorAll('.sort-button').forEach(button => {
-        button.addEventListener('click', () => {
-            document.querySelectorAll('.sort-button').forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            timeFilterDiv.style.display = button.dataset.sort === 'top' ? 'flex' : 'none';
-            if (button.dataset.sort === 'top') {
-                document.querySelector('.time-button[data-time="day"]').classList.add('active');
-            }
-            displayMedia();
+        // Sort buttons
+        document.querySelectorAll('.sort-button').forEach(button => {
+            button.addEventListener('click', () => {
+                try {
+                    document.querySelectorAll('.sort-button').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    timeFilterDiv.style.display = button.dataset.sort === 'top' ? 'flex' : 'none';
+                    if (button.dataset.sort === 'top') {
+                        document.querySelector('.time-button[data-time="day"]').classList.add('active');
+                    }
+                    displayMedia();
+                } catch (e) {
+                    console.error('Error in sort button handler:', e);
+                    updateStatus(`Error in sort button: ${e.message}`, true);
+                }
+            });
         });
-    });
 
-    // Time filter buttons
-    document.querySelectorAll('.time-button').forEach(button => {
-        button.addEventListener('click', () => {
-            document.querySelectorAll('.time-button').forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            displayMedia();
+        // Time filter buttons
+        document.querySelectorAll('.time-button').forEach(button => {
+            button.addEventListener('click', () => {
+                try {
+                    document.querySelectorAll('.time-button').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    displayMedia();
+                } catch (e) {
+                    console.error('Error in time button handler:', e);
+                    updateStatus(`Error in time button: ${e.message}`, true);
+                }
+            });
         });
-    });
 
-    // Layout buttons
-    document.querySelectorAll('.layout-button').forEach(button => {
-        button.addEventListener('click', () => {
-            document.querySelectorAll('.layout-button').forEach(btn => btn.classList.remove('active'));
-            button.classList.add('active');
-            updateLayout();
-            displayMedia();
+        // Layout buttons
+        document.querySelectorAll('.layout-button').forEach(button => {
+            button.addEventListener('click', () => {
+                try {
+                    document.querySelectorAll('.layout-button').forEach(btn => btn.classList.remove('active'));
+                    button.classList.add('active');
+                    updateLayout();
+                    displayMedia();
+                } catch (e) {
+                    console.error('Error in layout button handler:', e);
+                    updateStatus(`Error in layout button: ${e.message}`, true);
+                }
+            });
         });
-    });
 
-    // Sliders
-    document.getElementById('columns-slider').addEventListener('input', updateLayout);
-    document.getElementById('size-slider').addEventListener('input', updateLayout);
+        // Sliders
+        document.getElementById('columns-slider').addEventListener('input', updateLayout);
+        document.getElementById('size-slider').addEventListener('input', updateLayout);
 
-    // Inputs
-    document.getElementById('client-id').addEventListener('change', displayMedia);
-    document.getElementById('client-secret').addEventListener('change', displayMedia);
-    document.getElementById('subreddit-input').addEventListener('change', displayMedia);
-    document.getElementById('limit-input').addEventListener('change', displayMedia);
+        // Inputs
+        document.getElementById('client-id').addEventListener('change', displayMedia);
+        document.getElementById('client-secret').addEventListener('change', displayMedia);
+        document.getElementById('subreddit-input').addEventListener('change', displayMedia);
+        document.getElementById('limit-input').addEventListener('change', displayMedia);
+    } catch (e) {
+        console.error('Error setting up event listeners:', e);
+        updateStatus(`Error setting up event listeners: ${e.message}`, true);
+    }
 }
 
 // Set defaults
-document.querySelector('.sort-button[data-sort="best"]').classList.add('active');
-document.querySelector('.layout-button[data-layout="grid"]').classList.add('active');
+try {
+    document.querySelector('.sort-button[data-sort="best"]').classList.add('active');
+    document.querySelector('.layout-button[data-layout="grid"]').classList.add('active');
+} catch (e) {
+    console.error('Error setting defaults:', e);
+    updateStatus(`Error setting defaults: ${e.message}`, true);
+}
 
 // Initialize
-setupEventListeners();
-updateLayout();
-displayMedia();
+try {
+    updateStatus('Waiting for credentials');
+    setupEventListeners();
+    updateLayout();
+} catch (e) {
+    console.error('Error initializing:', e);
+    updateStatus(`Error initializing: ${e.message}`, true);
+}
